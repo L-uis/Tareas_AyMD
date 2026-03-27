@@ -38,8 +38,8 @@ Tareas_AyMD/Tarea 02/
 ├── Tarea02.pdf          # Reporte PDF
 ├── RNPDNO_limpio.csv    # Dataset limpio (requerido para ejecutar ambos)
 ├── requirements.txt
-├── README.md            # Este archivo
-└── docs/                # Salida HTML para GitHub Pages (generada)
+└── README.md            # Este archivo
+ 
 ```
 
 ---
