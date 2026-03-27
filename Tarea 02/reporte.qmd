@@ -1,0 +1,865 @@
+---
+title: "Personas Desaparecidas y No Localizadas en México"
+subtitle: "Análisis Exploratorio de Datos — RNPDNO 2023"
+author:
+  - "Brenda Jiménez Ruiz"
+  - "Irany Solano Marcial"
+  - "Juan Luis Peña Mata"
+date: "2026-03-26"
+date-format: "D [de] MMMM [de] YYYY"
+lang: es
+
+format:
+  dashboard:
+    theme: cosmo
+    nav-buttons:
+      - icon: github
+        href: https://github.com/L-uis/Tareas_AyMD
+
+jupyter: python3
+---
+
+```{python}
+#| include: false
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
+import seaborn as sns
+import math
+
+sns.set_theme(style="whitegrid", palette="muted")
+plt.rcParams.update({"font.family": "DejaVu Sans", "figure.dpi": 130})
+COLOR_PRINCIPAL  = "#1A3C6E"
+COLOR_SECUNDARIO = "#B48C00"
+
+df = pd.read_csv("RNPDNO_limpio.csv", encoding="utf-8")
+df["Fecha de desaparición"] = pd.to_datetime(df["Fecha de desaparición"], errors="coerce")
+df["anio"] = df["Fecha de desaparición"].dt.year
+edad = df["Edad"].dropna()
+```
+
+# Inicio
+
+## Row
+
+```{python}
+#| content: valuebox
+#| title: "Total de Registros (dataset original)"
+dict(icon="people-fill", color="primary", value="116,945")
+```
+
+```{python}
+#| content: valuebox
+#| title: "Registros con datos completos"
+dict(icon="person-check-fill", color="success", value="79,488")
+```
+
+```{python}
+#| content: valuebox
+#| title: "Registros protegidos"
+dict(icon="shield-lock-fill", color="warning", value="37,460")
+```
+
+```{python}
+#| content: valuebox
+#| title: "Periodo cubierto"
+dict(icon="calendar-range", color="info", value="1968 – 2023")
+```
+
+## Row
+
+```{python}
+#| title: "Sobre este análisis"
+from IPython.display import Markdown
+Markdown("""
+## Registro Nacional de Personas Desaparecidas y No Localizadas
+
+Este dashboard presenta el análisis exploratorio del dataset **RNPDNO-22-08-2023.csv**,
+publicado por la **Comisión Nacional de Búsqueda de Personas (CNB)** de la Secretaría de Gobernación.
+
+### Fuentes oficiales
+- [RNPDNO — Versión Estadística](https://versionpublicarnpdno.segob.gob.mx/Dashboard/ContextoGeneral)
+- [Observatorio sobre Desaparición e Impunidad — UNAM](https://odim.juridicas.unam.mx/)
+- [¿A dónde van los desaparecidos?](https://adondevanlosdesaparecidos.org/)
+
+### Nota metodológica
+El dataset contiene **~37,460 registros protegidos** (etiquetados como *ELIMINADO*),
+correspondientes a casos cuya identidad fue resguardada conforme a la
+*Ley General de Protección de Datos Personales en Posesión de Sujetos Obligados*.
+Estos registros **no son errores** — representan casos reales y se documentan
+como una limitación estructural del análisis.
+""")
+```
+
+```{python}
+#| title: "Contenido del reporte"
+from IPython.display import Markdown
+Markdown("""
+| Sección | Contenido |
+|---|---|
+| **I. Metodología** | Empresa y metodología de Minería de Datos por integrante |
+| **II. Objetivo** | Preguntas de análisis y criterios de éxito |
+| **III. Dataset** | Descripción, diccionario, limpieza y normalización |
+| **IV. CRISP-DM** | Aplicación de la metodología al caso |
+| **V. EDA** | Medidas descriptivas y visualizaciones |
+| **VI. Correlación** | Matriz de correlación (heatmap) |
+| **VII. Hallazgos** | 8 hallazgos principales con evidencia gráfica |
+| **VIII. Limitaciones** | Calidad, sesgos, variables faltantes |
+| **IX. Conclusión** | Síntesis y perspectivas futuras |
+""")
+```
+
+# I. Metodología
+
+## Row
+
+```{python}
+#| title: "Irany Solano Marcial — BBVA"
+from IPython.display import Markdown
+Markdown("""
+### BBVA — Metodología CRISP-DM adaptada + prácticas ágiles
+
+BBVA es una de las instituciones financieras más grandes de España y América Latina,
+con presencia activa en México. Su área de datos, **BBVA Data & Analytics (D&A)**,
+ha documentado públicamente su enfoque metodológico para proyectos de minería de datos.
+
+En BBVA D&A los proyectos heredan características de CRISP-DM, pero no lo aplican de
+forma rígida. Con sus proyectos aumentando en número y diversidad, el equipo desarrolló
+un flujo de trabajo integral propio para encajar mejor en **prácticas ágiles**.
+
+#### Herramientas principales
+| Categoría | Herramienta |
+|---|---|
+| Data Discovery | Amundsen |
+| Exploración | TensorFlow Data Validation, InspectDF |
+| Features | FeatureTOOLS, Ludwig, client2vec |
+
+#### Aplicaciones concretas
+- Detección de perfiles de clientes fraudulentos
+- Estimación de probabilidad de abandono (churn)
+- Identificación de patrones de consumo para recomendación de productos financieros
+
+**Fuente:** José Antonio Rodríguez Serrano. *Acelerar el flujo de trabajo en Ciencia de Datos*.
+BBVA AI Factory, mayo 2025.
+""")
+```
+
+```{python}
+#| title: "Brenda Jiménez Ruiz — Netflix"
+from IPython.display import Markdown
+Markdown("""
+### Netflix — Experimentación continua + método científico
+
+Netflix es una plataforma de entretenimiento con más de 300 millones de suscriptores.
+Su enfoque se distingue por estar centrado en la **experimentación continua**.
+
+A diferencia de metodologías estándar como CRISP-DM, Netflix desarrolló su propio
+**proceso iterativo basado en el método científico**. Los científicos de datos
+participan en todo el ciclo de vida del proyecto:
+
+- Exploración de datos e ideación
+- Diseño y ejecución de pruebas
+- Análisis de resultados
+- Síntesis de aprendizajes para informar decisiones
+
+El pilar técnico central es su plataforma de experimentación propia **ABlaze**, que
+soporta más de 3,000 proyectos de IA y ML, ejecutando cientos de millones de trabajos
+de cómputo y gestionando decenas de petabytes de modelos y artefactos.
+
+**Fuente:** Martin Tingley et al. *Experimentation is a major focus of Data Science across Netflix*.
+Netflix Tech Blog, enero 2022.
+""")
+```
+
+## Row
+
+```{python}
+#| title: "Juan Luis Peña Mata — Google"
+from IPython.display import Markdown
+Markdown("""
+### Google — Rules of Machine Learning + Vertex AI
+
+Google es pionera en el uso de machine learning a escala masiva. Su metodología reconoce
+que los proyectos de ML son **fundamentalmente distintos** a los proyectos de software
+tradicionales — no lineales y con grados variables de incertidumbre.
+
+En lugar de un plan rígido, Google promueve una **mentalidad experimental** documentada
+en *Rules of Machine Learning*, que organiza el desarrollo en tres fases:
+
+| Fase | Descripción |
+|---|---|
+| **1. Infraestructura** | Construcción de pipeline y primeros modelos |
+| **2. Iteración** | Lanzamiento, nuevas características, evaluación de modelos |
+| **3. Optimización** | Mejoras avanzadas al alcanzar plateau de rendimiento |
+
+A nivel de infraestructura, Google centraliza sus proyectos en **Vertex AI**, plataforma
+unificada que combina BigQuery con herramientas de MLOps.
+
+**Fuente:** Google Developers. *Planificación de proyectos de AA*.
+https://developers.google.com/machine-learning/managing-ml-projects/planning?hl=es-419
+""")
+```
+
+# II. Objetivo
+
+## Row
+
+```{python}
+#| title: "Objetivo y Preguntas de Análisis"
+from IPython.display import Markdown
+Markdown("""
+## Objetivo
+
+El presente reporte tiene como objetivo analizar el dataset **RNPDNO-22-08-2023.csv**,
+publicado por la **Comisión Nacional de Búsqueda de Personas (CNB)**, con la finalidad
+de identificar patrones temporales, geográficos y demográficos en los registros de personas
+desaparecidas y no localizadas en México. Los hallazgos están orientados a apoyar la toma
+de decisiones en materia de política pública y estrategias de búsqueda.
+
+## Preguntas de Análisis
+
+1. ¿Cuáles son las entidades federativas con mayor número de reportes de desaparición?
+2. ¿Qué distribución por sexo presentan los registros de personas desaparecidas?
+3. ¿Qué grupos de edad son los más afectados por las desapariciones reportadas?
+4. ¿Existe una tendencia temporal en el número de desapariciones reportadas entre 2000 y 2023?
+5. ¿Qué autoridades concentran el mayor volumen de reportes y qué implica esto institucionalmente?
+6. ¿Cuál es la composición de nacionalidades en los registros y qué refleja sobre la dimensión migratoria del fenómeno?
+7. ¿Qué proporción del dataset original fue eliminada por registros protegidos y cómo afecta al análisis?
+8. ¿Qué nivel de variabilidad presenta la edad y qué grupos etarios concentran el mayor riesgo?
+
+## Criterios de Éxito
+
+El análisis se considerará exitoso si: (a) se identifican al menos 8 hallazgos sustentados
+con evidencia gráfica o tabular, (b) el dataset limpio presenta consistencia interna
+verificable, y (c) los resultados pueden ser comprendidos por tomadores de decisiones
+sin formación técnica.
+""")
+```
+
+# III. Dataset
+
+## Row {.tabset}
+
+```{python}
+#| title: "Descripción general"
+from IPython.display import Markdown
+Markdown("""
+El dataset utilizado es el **Registro Nacional de Personas Desaparecidas y No Localizadas
+(RNPDNO)**. En su estado original contiene **116,945 filas** y **11 columnas**, donde cada
+fila representa un reporte de desaparición de una persona.
+
+Una misma persona puede tener más de un reporte. La columna *Consecutivo Reportes por
+Persona* actúa como identificador y solo aparece en el primer reporte de cada una.
+El dataset contiene **110,965 personas únicas** distribuidas en 116,945 reportes.
+
+| Característica | Valor |
+|---|---|
+| **Filas (original)** | 116,945 |
+| **Filas (limpio)** | 79,488 |
+| **Columnas** | 11 |
+| **Periodo cubierto** | 01/05/1968 al 20/08/2023 |
+| **Personas únicas** | 77,259 |
+| **Unidad de análisis** | Un reporte individual de desaparición |
+| **Registros protegidos** | 37,460 (32.1%) |
+| **Codificación** | ISO-8859-1 (Latin-1) |
+| **Fuente** | Comisión Nacional de Búsqueda de Personas (CNB) |
+""")
+```
+
+```{python}
+#| title: "Diccionario de datos"
+from IPython.display import Markdown
+Markdown("""
+| Variable | Descripción | Tipo de dato | Tipo estadístico |
+|---|---|---|---|
+| Consecutivo Reportes por Persona | Identificador de persona. Solo aparece en el primer reporte. | int64 | Numérica discreta |
+| Consecutivo Registro | Orden del reporte dentro de los registros de una misma persona. | int64 | Numérica discreta |
+| Nombre | Nombre(s) de pila. 5 nulos (0.01%). | string | Categórica nominal |
+| Primer Apellido | Primer apellido. 26 nulos (0.03%). | string | Categórica nominal |
+| Segundo Apellido | Segundo apellido. 1,449 nulos (1.82%) — dato opcional. | string | Categórica nominal |
+| Edad | Edad en años al momento de la desaparición. Rango: 1–100. Media: 31.8 años. 4,626 nulos (5.82%). | float64 | Numérica continua |
+| Sexo | HOMBRE (75.6%), MUJER (23.6%), INDETERMINADO (0.8%). Sin nulos. | string | Categórica nominal |
+| Nacionalidad | Nacionalidad. MEXICANA (87.01%). 2 nulos. | string | Categórica nominal |
+| Fecha de desaparición | Fecha del evento. Rango: 1968–2023. 56,085 nulos (70.56%) MNAR. | datetime64 | Numérica continua |
+| Entidad de desaparición | Estado de la República. 32 valores. Sin nulos. Más frecuente: Tamaulipas (14.2%). | string | Categórica nominal |
+| Autoridad que reportó | Institución que generó el reporte. Alta cardinalidad. Sin nulos. | string | Categórica nominal |
+""")
+```
+
+```{python}
+#| title: "Limpieza de datos"
+from IPython.display import Markdown
+Markdown("""
+### Decisiones de limpieza
+
+**Consecutivo Reportes por Persona:** Presentaba 5,980 nulos. Se aplicó *forward fill*
+para propagar el identificador hacia los reportes adicionales.
+
+**Registros ELIMINADO:** Se identificaron 37,460 filas con datos protegidos (MNAR).
+Se eliminaron del dataset. **El dataset quedó con 79,488 filas.**
+
+**Fecha de desaparición:** Con 70.56% de faltantes MNAR, **no se imputó** por tres motivos:
+(1) cualquier método estaría inventando la mayoría de la columna;
+(2) los métodos estándar (KNN, imputación múltiple) asumen MAR, condición que no se cumple;
+(3) imputar con media/mediana introduciría sesgo grave en los análisis temporales.
+
+**Edad:** 11 registros con valores > 100 años (máximo: 1,832) y 240 con valor = 0.
+Los 251 errores de captura fueron reemplazados por NaN. Rango válido: 1–100 años.
+
+### Nulos justificados en el dataset limpio
+
+| Columna | Nulos | % | Justificación |
+|---|---|---|---|
+| Segundo Apellido | 1,449 | 1.82% | Dato opcional |
+| Edad | 4,626 | 5.82% | No registrado en el reporte |
+| Fecha de desaparición | 56,085 | 70.56% | MNAR — ausencia estructural |
+""")
+```
+
+```{python}
+#| title: "Normalización"
+from IPython.display import Markdown
+Markdown("""
+### Normalización de categorías
+
+Todas las columnas de texto fueron convertidas a **mayúsculas** y se eliminaron
+espacios en blanco al inicio y al final de cada valor.
+
+### Correcciones ortográficas en Nacionalidad
+
+| Valor original | Valor corregido | Registros |
+|---|---|---|
+| HONDUREÑAO | HONDUREÑA | 326 → unificados con 21 existentes = 347 total |
+| SALVADORENA | SALVADOREÑA | — |
+| BRASILENA | BRASILEÑA | — |
+| BELICENA | BELICEÑA | — |
+
+### Validación de fechas
+
+- **Fechas futuras (> 2024):** 0 registros ✅
+- **Fechas anteriores a 1990:** 373 registros **conservados** — históricamente válidos
+  (desapariciones durante la guerra sucia en México, década de 1970)
+- Concentración de fechas en el primer día del mes: registros ingresados tardíamente
+  con precisión de fecha limitada — característica del dato, no un error.
+""")
+```
+
+# IV. CRISP-DM
+
+## Row
+
+```{python}
+#| title: "Fases aplicadas"
+from IPython.display import Markdown
+Markdown("""
+La metodología **CRISP-DM** se aplicó de forma integral a lo largo de este reporte.
+
+| Fase | Actividades | Sección |
+|---|---|---|
+| **1. Business Understanding** | Objetivo, preguntas y criterios de éxito | Sección II |
+| **2. Data Understanding** | Descripción, diccionario y EDA | Secciones III, V, VI |
+| **3. Data Preparation** | Limpieza, conversión y normalización | Secciones III.3, III.4 |
+| **4. Modelling** | Técnicas sugeridas | Ver tarjeta siguiente |
+| **5. Evaluation** | Sesgos, limitaciones y calidad de datos | Sección VIII |
+| **6. Deployment** | Reporte PDF, dashboard Quarto, CSV limpio | Sección IX |
+""")
+```
+
+```{python}
+#| title: "Fase 4 — Técnicas sugeridas"
+from IPython.display import Markdown
+Markdown("""
+Aunque en este proyecto no se entrenaron modelos predictivos, se identifican
+las técnicas más adecuadas para un análisis posterior:
+
+### Clustering (HDBSCAN o K-Means)
+Para identificar grupos de entidades con patrones similares de desaparición
+por edad, sexo y frecuencia temporal.
+
+### Series de tiempo (Prophet o ARIMA)
+Para modelar la tendencia de reportes anuales y proyectar el comportamiento
+futuro, incorporando los efectos de cambios institucionales.
+
+### Clasificación supervisada
+Si se dispusiera de la variable *localizado/no localizado*, podría predecirse
+el probable resultado de una búsqueda en función del perfil demográfico y
+geográfico del caso.
+""")
+```
+
+# V. EDA
+
+## Row {.tabset}
+
+```{python}
+#| title: "Medidas de localización"
+media   = round(edad.mean(), 2)
+mediana = round(edad.median(), 2)
+moda    = edad.mode()[0]
+q1      = round(edad.quantile(0.25), 2)
+q3      = round(edad.quantile(0.75), 2)
+
+fig, ax = plt.subplots(figsize=(10, 4))
+ax.hist(edad, bins=40, color=COLOR_PRINCIPAL, edgecolor="white", alpha=0.85)
+ax.axvline(media,   color="#E74C3C", lw=2, linestyle="--", label=f"Media = {media}")
+ax.axvline(mediana, color="#27AE60", lw=2, linestyle="-",  label=f"Mediana = {mediana}")
+ax.axvline(moda,    color=COLOR_SECUNDARIO, lw=2, linestyle=":", label=f"Moda = {moda}")
+ax.set_title("Distribución de Edades al Momento de la Desaparición")
+ax.set_xlabel("Edad (años)")
+ax.set_ylabel("Número de registros")
+ax.legend()
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+#| title: "Medidas de variabilidad"
+std  = round(edad.std(), 2)
+iqr  = round(q3 - q1, 2)
+cv   = round(std / media * 100, 2)
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+axes[0].boxplot(edad, vert=False, patch_artist=True,
+    boxprops=dict(facecolor=COLOR_PRINCIPAL, alpha=0.6),
+    medianprops=dict(color="#E74C3C", lw=2),
+    flierprops=dict(marker="o", color=COLOR_SECUNDARIO, alpha=0.3, markersize=3))
+axes[0].axvline(media,   color="#E74C3C", lw=1.5, linestyle="--", label=f"Media={media}")
+axes[0].axvline(mediana, color="#27AE60", lw=1.5, linestyle="-",  label=f"Mediana={mediana}")
+axes[0].set_title("Boxplot de Edad")
+axes[0].set_xlabel("Edad (años)")
+axes[0].set_yticks([])
+axes[0].legend(fontsize=9)
+
+medidas = ["Desv. estándar", "Varianza", "Rango", "IQR", "Coef. variación"]
+valores = [std, round(edad.var(),2), int(edad.max()-edad.min()), iqr, f"{cv}%"]
+axes[1].axis("off")
+tabla = axes[1].table(
+    cellText=[[m, str(v)] for m, v in zip(medidas, valores)],
+    colLabels=["Medida", "Valor"], cellLoc="center", loc="center",
+    colWidths=[0.6, 0.4])
+tabla.auto_set_font_size(False)
+tabla.set_fontsize(11)
+tabla.scale(1, 1.8)
+for (row, col), cell in tabla.get_celld().items():
+    if row == 0:
+        cell.set_facecolor(COLOR_PRINCIPAL)
+        cell.set_text_props(color="white", fontweight="bold")
+    elif row % 2 == 0:
+        cell.set_facecolor("#EEF4FB")
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+#| title: "Medidas de heterogeneidad"
+def shannon_entropy(series):
+    counts = series.value_counts()
+    probs  = counts / counts.sum()
+    return round(-sum(p * math.log2(p) for p in probs if p > 0), 4)
+
+h_sexo    = shannon_entropy(df["Sexo"])
+h_entidad = shannon_entropy(df["Entidad de desaparición"].dropna())
+h_nacion  = shannon_entropy(df["Nacionalidad"].dropna())
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+variables = ["Sexo", "Nacionalidad", "Entidad"]
+entropias = [h_sexo, h_nacion, h_entidad]
+bars = axes[0].bar(variables, entropias,
+    color=[COLOR_PRINCIPAL, COLOR_SECUNDARIO, "#2E86AB"], edgecolor="white", width=0.5)
+for bar, val in zip(bars, entropias):
+    axes[0].text(bar.get_x()+bar.get_width()/2, bar.get_height()+0.05,
+        str(val), ha="center", fontsize=11, fontweight="bold")
+axes[0].set_title("Entropía de Shannon por Variable")
+axes[0].set_ylabel("Entropía (bits)")
+axes[0].set_ylim(0, max(entropias)*1.2)
+
+sexo_counts = df["Sexo"].value_counts()
+axes[1].pie(sexo_counts, labels=sexo_counts.index, autopct="%1.1f%%",
+    colors=[COLOR_PRINCIPAL, "#C0392B", "#7F8C8D"],
+    startangle=90, wedgeprops=dict(edgecolor="white", linewidth=1.5))
+axes[1].set_title("Distribución por Sexo")
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+#| title: "Medidas de concentración"
+counts        = df["Entidad de desaparición"].value_counts().values
+counts_sorted = np.sort(counts)
+n             = len(counts_sorted)
+lorenz_x = np.concatenate([[0], np.arange(1, n+1)/n])
+lorenz_y = np.concatenate([[0], np.cumsum(counts_sorted)/counts_sorted.sum()])
+gini = round((2*np.sum(np.arange(1,n+1)*counts_sorted)/(n*counts_sorted.sum()))-(n+1)/n, 4)
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+axes[0].plot(lorenz_x, lorenz_y, color=COLOR_PRINCIPAL, lw=2, label=f"Lorenz (Gini={gini})")
+axes[0].plot([0,1],[0,1], color="gray", lw=1.5, linestyle="--", label="Igualdad perfecta")
+axes[0].fill_between(lorenz_x, lorenz_y, lorenz_x, alpha=0.15, color=COLOR_PRINCIPAL)
+axes[0].set_title("Curva de Lorenz — Registros por Entidad")
+axes[0].set_xlabel("Proporción acumulada de entidades")
+axes[0].set_ylabel("Proporción acumulada de registros")
+axes[0].legend()
+
+top5  = df["Entidad de desaparición"].value_counts().head(5).sum()
+resto = len(df) - top5
+axes[1].pie([top5, resto],
+    labels=[f"Top 5 entidades\n({top5:,})", f"Resto\n({resto:,})"],
+    colors=[COLOR_PRINCIPAL, "#AED6F1"], autopct="%1.1f%%", startangle=90,
+    wedgeprops=dict(edgecolor="white", linewidth=1.5))
+axes[1].set_title("Concentración: Top 5 vs. Resto")
+plt.tight_layout()
+plt.show()
+```
+
+# VI. Correlación
+
+## Row
+
+```{python}
+#| title: "Matriz de correlación"
+df_num = df[["Consecutivo Reportes por Persona","Consecutivo Registro","Edad","anio"]].copy()
+df_num.columns = ["Consec. Reportes","Consec. Registro","Edad","Año desaparición"]
+corr = df_num.corr()
+
+fig, ax = plt.subplots(figsize=(7, 6))
+mask = np.zeros_like(corr, dtype=bool)
+mask[np.triu_indices_from(mask)] = True
+sns.heatmap(corr, annot=True, fmt=".2f", cmap="Blues",
+    mask=mask, ax=ax, linewidths=0.5, cbar_kws={"shrink": 0.8},
+    annot_kws={"size": 12})
+ax.set_title("Matriz de Correlación — Variables Numéricas")
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+#| title: "Interpretación"
+from IPython.display import Markdown
+Markdown("""
+### Resultados
+
+| Par de variables | r | Interpretación |
+|---|---|---|
+| Consec. Reportes – Consec. Registro | -0.00 | Sin relación lineal |
+| Consec. Reportes – Edad | -0.00 | Sin relación lineal |
+| Consec. Reportes – Año desap. | -0.01 | Sin relación lineal |
+| Consec. Registro – Edad | 0.03 | Correlación muy débil |
+| Consec. Registro – Año desap. | -0.04 | Correlación muy débil |
+| **Edad – Año desap.** | **-0.07** | **Correlación más notable (aún muy débil)** |
+
+La matriz revela que **no existe ninguna correlación lineal relevante** entre las variables
+numéricas. La ausencia de correlaciones fuertes sugiere que cada variable aporta información
+independiente. Un análisis multivariado más profundo requeriría incorporar las variables
+categóricas mediante codificación adecuada.
+""")
+```
+
+# VII. Hallazgos
+
+## Row
+
+```{python}
+#| title: "H1 — Tamaulipas concentra el mayor número"
+top_entidades = df["Entidad de desaparición"].value_counts().head(10)
+fig, ax = plt.subplots(figsize=(9, 5))
+ax.barh(top_entidades.index[::-1], top_entidades.values[::-1],
+    color=COLOR_PRINCIPAL, edgecolor="white")
+for i, val in enumerate(top_entidades.values[::-1]):
+    ax.text(val+50, i, f"{val:,}", va="center", fontsize=9)
+ax.set_title("Top 10 Entidades con Mayor Número de Reportes")
+ax.set_xlabel("Número de registros")
+ax.set_xlim(0, top_entidades.max()*1.15)
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+#| title: "H2 — Hombres: 3 de cada 4 registros"
+sexo_counts = df["Sexo"].value_counts()
+fig, axes = plt.subplots(1, 2, figsize=(9, 4))
+axes[0].pie(sexo_counts, labels=sexo_counts.index, autopct="%1.1f%%",
+    colors=[COLOR_PRINCIPAL, "#C0392B", "#7F8C8D"],
+    startangle=90, wedgeprops=dict(edgecolor="white", linewidth=1.5))
+axes[0].set_title("Distribución por Sexo")
+axes[1].bar(sexo_counts.index, sexo_counts.values,
+    color=[COLOR_PRINCIPAL, "#C0392B", "#7F8C8D"], edgecolor="white")
+for i, val in enumerate(sexo_counts.values):
+    axes[1].text(i, val+200, f"{val:,}", ha="center", fontsize=10)
+axes[1].set_title("Registros por Sexo")
+axes[1].set_ylabel("Número de registros")
+plt.tight_layout()
+plt.show()
+```
+
+## Row
+
+```{python}
+#| title: "H3 — Jóvenes 15–30: grupo más vulnerable"
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+n, bins, patches = axes[0].hist(edad, bins=40, color="#AED6F1", edgecolor="white")
+for patch, left_edge in zip(patches, bins[:-1]):
+    if 15 <= left_edge <= 30:
+        patch.set_facecolor(COLOR_PRINCIPAL)
+axes[0].axvline(15, color=COLOR_SECUNDARIO, lw=1.5, linestyle="--", alpha=0.8)
+axes[0].axvline(30, color=COLOR_SECUNDARIO, lw=1.5, linestyle="--", alpha=0.8, label="Rango 15–30")
+axes[0].set_title("Edades (rango 15–30 resaltado)")
+axes[0].set_xlabel("Edad (años)")
+axes[0].set_ylabel("Registros")
+axes[0].legend()
+
+rangos = pd.cut(edad, bins=[0,11,17,29,59,100], labels=["0–11","12–17","18–29","30–59","60+"])
+conteo = rangos.value_counts().sort_index()
+bars = axes[1].bar(conteo.index.astype(str), conteo.values,
+    color=["#AED6F1", COLOR_SECUNDARIO, COLOR_PRINCIPAL, "#7FB3D3", "#BDC3C7"], edgecolor="white")
+for bar, val in zip(bars, conteo.values):
+    axes[1].text(bar.get_x()+bar.get_width()/2, bar.get_height()+150,
+        f"{val:,}", ha="center", fontsize=10, fontweight="bold")
+axes[1].set_title("Registros por Rango de Edad")
+axes[1].set_xlabel("Rango de edad")
+axes[1].set_ylabel("Registros")
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+#| title: "H4 — Incremento sostenido desde 2006"
+por_anio = df.groupby("anio").size().reset_index(name="registros")
+por_anio = por_anio[(por_anio["anio"] >= 2000) & (por_anio["anio"] <= 2023)]
+fig, ax = plt.subplots(figsize=(10, 4))
+ax.bar(por_anio["anio"], por_anio["registros"], color=COLOR_PRINCIPAL, edgecolor="white", alpha=0.85)
+ax.plot(por_anio["anio"], por_anio["registros"], color=COLOR_SECUNDARIO, lw=2, marker="o", markersize=5)
+ax.set_title("Reportes de Desaparición por Año (2000–2023)")
+ax.set_xlabel("Año")
+ax.set_ylabel("Número de registros")
+ax.xaxis.set_major_locator(mticker.MultipleLocator(2))
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+```
+
+## Row
+
+```{python}
+#| title: "H5 — Fiscalías estatales concentran reportes"
+top_aut = df["Autoridad que reportó"].value_counts().head(10)
+labels  = [lbl[:40]+"..." if len(lbl) > 40 else lbl for lbl in top_aut.index[::-1]]
+fig, ax = plt.subplots(figsize=(9, 5))
+ax.barh(labels, top_aut.values[::-1], color=COLOR_SECUNDARIO, edgecolor="white")
+for i, val in enumerate(top_aut.values[::-1]):
+    ax.text(val+30, i, f"{val:,}", va="center", fontsize=8)
+ax.set_title("Top 10 Autoridades con Mayor Número de Reportes")
+ax.set_xlabel("Número de registros")
+ax.set_xlim(0, top_aut.max()*1.15)
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+#| title: "H6 — 87.4% de nacionalidad mexicana"
+top_nac = df["Nacionalidad"].value_counts().head(8)
+fig, ax = plt.subplots(figsize=(9, 4))
+bars = ax.bar(top_nac.index, top_nac.values,
+    color=[COLOR_PRINCIPAL if i==0 else "#7FB3D3" for i in range(len(top_nac))],
+    edgecolor="white")
+for bar, val in zip(bars, top_nac.values):
+    ax.text(bar.get_x()+bar.get_width()/2, bar.get_height()+150,
+        f"{val:,}", ha="center", fontsize=9)
+ax.set_title("Top 8 Nacionalidades en los Registros")
+ax.set_ylabel("Número de registros")
+plt.xticks(rotation=30, ha="right")
+plt.tight_layout()
+plt.show()
+```
+
+## Row
+
+```{python}
+#| title: "H7 — 32.1% de registros protegidos"
+fig, ax = plt.subplots(figsize=(6, 5))
+ax.pie([79488, 37460],
+    labels=["Registros con datos\ncompletos (67.9%)", "Registros protegidos\n(32.1%)"],
+    colors=[COLOR_PRINCIPAL, "#E74C3C"], autopct="%1.1f%%", startangle=90,
+    wedgeprops=dict(edgecolor="white", linewidth=2))
+ax.set_title("Proporción de Registros Protegidos vs. Completos")
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+#| title: "H8 — Alta variabilidad en edad"
+media_h8   = round(edad.mean(), 2)
+mediana_h8 = round(edad.median(), 2)
+std_h8     = round(edad.std(), 2)
+iqr_h8     = round(edad.quantile(0.75) - edad.quantile(0.25), 2)
+cv_h8      = round(std_h8/media_h8*100, 2)
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+axes[0].boxplot(edad, vert=False, patch_artist=True,
+    boxprops=dict(facecolor=COLOR_PRINCIPAL, color=COLOR_PRINCIPAL, alpha=0.6),
+    medianprops=dict(color="#E74C3C", lw=2.5),
+    flierprops=dict(marker="o", color=COLOR_SECUNDARIO, alpha=0.3, markersize=3))
+axes[0].axvline(media_h8,   color="#E74C3C", lw=1.5, linestyle="--", label=f"Media={media_h8}")
+axes[0].axvline(mediana_h8, color="#27AE60", lw=1.5, linestyle="-",  label=f"Mediana={mediana_h8}")
+axes[0].set_title("Boxplot de Edad al Momento de la Desaparición")
+axes[0].set_xlabel("Edad (años)")
+axes[0].set_yticks([])
+axes[0].legend(fontsize=9)
+
+medidas_h8 = ["Media","Mediana","Desv. estándar","Varianza","Rango","IQR","Coef. variación"]
+valores_h8 = [media_h8, mediana_h8, std_h8, round(edad.var(),2),
+              int(edad.max()-edad.min()), iqr_h8, f"{cv_h8}%"]
+axes[1].axis("off")
+tabla = axes[1].table(
+    cellText=[[m, str(v)] for m, v in zip(medidas_h8, valores_h8)],
+    colLabels=["Medida estadística","Valor"],
+    cellLoc="center", loc="center", colWidths=[0.65, 0.35])
+tabla.auto_set_font_size(False)
+tabla.set_fontsize(11)
+tabla.scale(1, 2.0)
+for (row, col), cell in tabla.get_celld().items():
+    if row == 0:
+        cell.set_facecolor(COLOR_PRINCIPAL)
+        cell.set_text_props(color="white", fontweight="bold")
+    elif row % 2 == 0:
+        cell.set_facecolor("#EEF4FB")
+axes[1].set_title("Resumen de Variabilidad — Edad", pad=20)
+plt.tight_layout()
+plt.show()
+```
+
+# VIII. Limitaciones
+
+## Row
+
+```{python}
+#| title: "Calidad de los datos y sesgos"
+from IPython.display import Markdown
+Markdown("""
+### Calidad de los Datos
+
+La columna `Fecha de desaparición` concentra la mayor problemática: **56,085 valores
+nulos (70.56%)** de tipo MNAR. Los análisis temporales se realizaron únicamente sobre
+los 23,403 registros con fecha válida, limitando la representatividad histórica.
+
+La columna `Edad` presentaba 11 registros con valores > 100 años (máximo: 1,832) y
+240 con valor = 0. Los 251 errores de captura fueron reemplazados por NaN.
+
+### Sesgos
+
+- **Subregistro:** Una proporción significativa de desapariciones nunca llega a ser
+  reportada (desconfianza institucional, miedo, desconocimiento de mecanismos de denuncia).
+
+- **Sesgo por registros protegidos:** El 32.1% de registros eliminados impide generalizar
+  hallazgos demográficos al total de casos.
+
+- **Heterogeneidad institucional:** Múltiples autoridades con distintos criterios introducen
+  inconsistencias en categorías como entidad, autoridad y nacionalidad.
+
+- **Subregistro de mujeres:** Las desapariciones de mujeres pueden estar subregistradas
+  por patrones culturales, particularmente en casos de violencia de género o trata.
+""")
+```
+
+```{python}
+#| title: "Variables faltantes y decisiones"
+from IPython.display import Markdown
+Markdown("""
+### Variables Faltantes
+
+El dataset público contiene únicamente **11 de las 450 variables** del RNPDNO completo.
+Variables ausentes clave:
+
+- Municipio de desaparición
+- Delito asociado al caso
+- Estatus de localización (localizado / no localizado)
+- Fecha de reporte
+- Características físicas de la persona
+
+### Decisiones de Limpieza Documentadas
+
+| Decisión | Justificación |
+|---|---|
+| Eliminar 37,460 registros ELIMINADO | No contienen información utilizable (MNAR) |
+| No imputar Fecha de desaparición | 70.56% faltantes MNAR — imputación introduciría sesgo grave |
+| Reemplazar edades fuera de rango por NaN | Errores de captura sin forma de recuperar el dato real |
+| Forward fill en Consecutivo Reportes | Propagar identificador a reportes adicionales |
+| Corregir 4 variantes ortográficas en Nacionalidad | Homologar etiquetas equivalentes |
+| Conservar 373 registros con fechas < 1990 | Históricamente válidos (guerra sucia, 1970s) |
+""")
+```
+
+# IX. Conclusión
+
+## Row
+
+```{python}
+#| title: "Síntesis de hallazgos"
+from IPython.display import Markdown
+Markdown("""
+El análisis exploratorio del dataset `RNPDNO-22-08-2023.csv` permitió identificar
+patrones claros en el fenómeno de las desapariciones en México a partir de **79,488
+registros** con datos utilizables.
+
+---
+
+### Dimensión geográfica
+Las desapariciones no se distribuyen de forma uniforme. **Tamaulipas** concentra
+11,288 casos, seguido por Estado de México (8,900) y Veracruz (6,022). El
+coeficiente de Gini de **0.54** confirma una concentración moderada-alta en pocas
+entidades, con implicaciones directas para la asignación de recursos de búsqueda.
+
+### Dimensión demográfica
+Los **hombres jóvenes** son el grupo más afectado: 75.6% de los registros son hombres
+y los jóvenes de 15–30 años representan el **45.4% del total**. La moda de 16 años
+señala que la adolescencia tardía es el punto de mayor frecuencia.
+
+La distribución presenta **sesgo positivo (a la derecha)** — Moda (16) < Mediana (30)
+< Media (31.77) — lo que indica que la **mediana e IQR** son medidas más representativas
+que la media y la desviación estándar para describir este conjunto de datos.
+
+### Dimensión temporal e institucional
+Incremento sostenido desde **2006**, con pico en 2019 (2,462 casos). Las fiscalías
+estatales concentran la mayoría de reportes, subrayando la importancia de fortalecer
+capacidades institucionales a nivel local.
+
+---
+
+### Perspectivas futuras
+Este análisis sienta las bases para estudios más profundos con las 450 variables
+del registro completo, modelos de series de tiempo y análisis geoespaciales a nivel
+municipal. La disponibilidad de datos abiertos es un paso fundamental hacia la
+transparencia y rendición de cuentas.
+""")
+```
+
+```{python}
+#| title: "Referencias"
+from IPython.display import Markdown
+Markdown("""
+### Referencias
+
+1. Comisión Nacional de Búsqueda de Personas. *RNPDNO — Versión Estadística*. SEGOB.
+   https://versionpublicarnpdno.segob.gob.mx/Dashboard/ContextoGeneral
+
+2. Google Developers. *Planificación de proyectos de AA*.
+   https://developers.google.com/machine-learning/managing-ml-projects/planning?hl=es-419
+
+3. José Antonio Rodríguez Serrano. *Acelerar el flujo de trabajo en Ciencia de Datos*.
+   BBVA AI Factory, mayo 2025.
+   https://www.bbvaaifactory.com/es/accelerating-data-science-workflows/
+
+4. Martin Tingley et al. *Experimentation is a major focus of Data Science across Netflix*.
+   Netflix Tech Blog, enero 2022.
+   https://netflixtechblog.com/experimentation-is-a-major-focus-of-data-science-across-netflix-f67923f8e985
+
+5. Observatorio sobre Desaparición e Impunidad en México, UNAM.
+   https://odim.juridicas.unam.mx/
+
+6. ¿A dónde van los desaparecidos?
+   https://adondevanlosdesaparecidos.org/
+
+7. Archivo General de la Nación. *El Ejército Mexicano durante la Guerra Sucia*.
+   https://www.gob.mx/agn/articulos/el-ejercito-mexicano-durante-la-guerra-sucia
+""")
+```
